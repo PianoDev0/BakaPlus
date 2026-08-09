@@ -83,3 +83,4 @@ jobs:
           body: ${{ steps.changelog.outputs.changelog }}
           tag: ${{ steps.rename_apk.outputs.tag_name }}
           name: ${{ steps.rename_apk.outputs.release_name }}
+          makeLatest: true
