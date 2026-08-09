@@ -64,7 +64,7 @@ jobs:
             echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
             echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
             echo "tag_name=${VERSION}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${VERSION} (${SHORT_SHA})" >> $GITHUB_OUTPUT
+            echo "release_name=${VERSION} (${SHORT_SHA})" >> $GITHUB_OUTPUT
           fi
 
       - name: Build Changelog
