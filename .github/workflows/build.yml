@@ -2,23 +2,22 @@ name: Build & Release BakaPlus
 
 on:
   push:
+    tags:
+      - 'v*'
+      - '*'
     branches:
       - 'main'
       - 'master'
   workflow_dispatch:
 
 jobs:
-  Build:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
-
-      - id: regex-match
-        uses: kaisugi/action-regex-match@v1.0.2
-        with:
-          text: ${{ github.event.head_commit.message }}
-          regex: '^v[0-9]+\.[0-9]+\.[0-9]+$'
 
       - name: Setup JDK
         uses: actions/setup-java@v4
@@ -54,12 +53,12 @@ jobs:
         id: rename_apk
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          MATCHED_VER="${{ steps.regex-match.outputs.match }}"
+          GRADLE_VER=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
           
-          if [ -n "$MATCHED_VER" ]; then
-            VERSION="$MATCHED_VER"
+          if [ -n "$GRADLE_VER" ]; then
+            VERSION="v${GRADLE_VER}"
           else
-            VERSION="dev"
+            VERSION="v1.0"
           fi
 
           TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*-signed.apk" -o -name "*-release.apk" | head -n 1)
@@ -73,7 +72,7 @@ jobs:
           fi
 
       - name: Build Changelog
-        if: ${{ steps.regex-match.outputs.match != '' }}
+        if: startsWith(github.ref, 'refs/tags/')
         id: changelog
         uses: ardalanamini/auto-changelog@v5.0.0
         with:
@@ -83,18 +82,14 @@ jobs:
           semver: false
 
       - name: Create Release
-        if: ${{ steps.regex-match.outputs.match != '' }}
-        id: create_release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
           body: ${{ steps.changelog.outputs.changelog }}
-          tag: ${{ github.event.head_commit.message }}
-          name: Release ${{ github.event.head_commit.message }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Artifact
-        if: ${{ steps.regex-match.outputs.match == '' }}
+        if: "!startsWith(github.ref, 'refs/tags/')"
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.rename_apk.outputs.apk_name }}
