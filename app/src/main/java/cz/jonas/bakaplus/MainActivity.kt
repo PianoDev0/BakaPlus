@@ -85,6 +85,10 @@ class MainActivity : AppCompatActivity() {
         settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = true
 
+        val defaultUserAgent = settings.userAgentString
+        val appVersion = packageManager.getPackageInfo(packageName, 0).versionName
+        settings.userAgentString = "$defaultUserAgent BakaPlus/$appVersion"
+
         connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         if (isNetworkAvailable()) {
             settings.cacheMode = WebSettings.LOAD_DEFAULT
@@ -166,6 +170,16 @@ class MainActivity : AppCompatActivity() {
                     """.trimIndent()
                     webView.loadDataWithBaseURL(appUrl, offlineHtml, "text/html", "UTF-8", null)
                 }
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                if (url.contains("github.com") && url.contains("/releases")) {
+                    val openIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    view?.context?.startActivity(openIntent)
+                    return true
+                }
+                return false
             }
         }
 
