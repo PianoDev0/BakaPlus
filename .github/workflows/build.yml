@@ -1,59 +1,101 @@
-name: Build & Sign BakaPlus APK
+name: Build & Release BakaPlus
+
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - 'main'
+      - 'master'
   workflow_dispatch:
 
 jobs:
-  build:
+  Build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - id: regex-match
+        uses: kaisugi/action-regex-match@v1.0.2
+        with:
+          text: ${{ github.event.head_commit.message }}
+          regex: '^v[0-9]+\.[0-9]+\.[0-9]+$'
+
+      - name: Setup JDK
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
           distribution: 'temurin'
-          cache: gradle
+          java-version: '21'
+          cache: 'gradle'
 
       - name: Restore google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
-          ls -la app/google-services.json
 
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build Release APK
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew app:assembleRelease --stacktrace
+      - name: Build App
+        run: |
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Sign App
+        if: ${{ steps.regex-match.outputs.match != '' }}
+        id: sign_app
+        uses: ilharp/sign-android-release@v2.0.0
+        with:
+          releaseDir: app/build/outputs/apk/release
+          signingKey: ${{ secrets.KEYSTORE_BASE64 }}
+          keyAlias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
 
       - name: Rename APK
         id: rename_apk
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          MATCHED_VER="${{ steps.regex-match.outputs.match }}"
           
-          ORIGINAL_PATH="${{ steps.sign_app.outputs.signedReleaseFile }}"
-          DIR=$(dirname "$ORIGINAL_PATH")
-          
-          # Název ve tvaru: BakaPlus-v1.0-a1b2c3d.apk
-          NEW_NAME="BakaPlus-v1.0-${SHORT_SHA}.apk"
-          NEW_PATH="${DIR}/${NEW_NAME}"
-          
-          mv "$ORIGINAL_PATH" "$NEW_PATH"
-          
-          echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
-          echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
+          if [ -n "$MATCHED_VER" ]; then
+            VERSION="$MATCHED_VER"
+            TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*-signed.apk" -o -name "*-release.apk" | head -n 1)
+          else
+            VERSION="dev"
+            TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          fi
 
-      - name: Upload Signed APK
+          if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
+            NEW_NAME="BakaPlus-${VERSION}-${SHORT_SHA}.apk"
+            NEW_PATH="app/build/outputs/apk/release/${NEW_NAME}"
+            mv "$TARGET_FILE" "$NEW_PATH"
+            echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
+            echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Changelog
+        if: ${{ steps.regex-match.outputs.match != '' }}
+        id: changelog
+        uses: ardalanamini/auto-changelog@v5.0.0
+        with:
+          mention-authors: false
+          mention-new-contributors: false
+          include-compare: false
+          semver: false
+
+      - name: Create Release
+        if: ${{ steps.regex-match.outputs.match != '' }}
+        id: create_release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          artifacts: ${{ steps.rename_apk.outputs.apk_path }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          tag: ${{ github.event.head_commit.message }}
+          name: Release ${{ github.event.head_commit.message }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact
+        if: ${{ steps.regex-match.outputs.match == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.rename_apk.outputs.apk_name }}
