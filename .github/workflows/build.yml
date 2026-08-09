@@ -41,7 +41,6 @@ jobs:
           ./gradlew :app:assembleRelease --stacktrace
 
       - name: Sign App
-        if: ${{ steps.regex-match.outputs.match != '' }}
         id: sign_app
         uses: ilharp/sign-android-release@v2.0.0
         with:
@@ -59,11 +58,11 @@ jobs:
           
           if [ -n "$MATCHED_VER" ]; then
             VERSION="$MATCHED_VER"
-            TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*-signed.apk" -o -name "*-release.apk" | head -n 1)
           else
             VERSION="dev"
-            TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           fi
+
+          TARGET_FILE=$(find app/build/outputs/apk/release/ -name "*-signed.apk" -o -name "*-release.apk" | head -n 1)
 
           if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
             NEW_NAME="BakaPlus-${VERSION}-${SHORT_SHA}.apk"
