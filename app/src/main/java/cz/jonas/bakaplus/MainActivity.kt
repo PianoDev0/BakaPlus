@@ -284,6 +284,16 @@ class MainActivity : AppCompatActivity() {
                 (context as? android.app.Activity)?.finish()
             }
         }
+        @android.webkit.JavascriptInterface
+        fun openUrl(url: String) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         @android.webkit.JavascriptInterface
         fun saveImage(base64Data: String, filename: String) {
