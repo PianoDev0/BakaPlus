@@ -73,8 +73,9 @@ jobs:
         with:
           mention-authors: false
           mention-new-contributors: false
-          include-compare: false
+          include-compare-link: false
           semver: false
+          preferred-api: 'git'
 
       - name: Create Release
         uses: ncipollo/release-action@v1.21.0
