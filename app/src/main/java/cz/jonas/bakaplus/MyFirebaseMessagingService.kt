@@ -7,20 +7,38 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import java.util.Calendar
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        val prefs = getSharedPreferences("BakaPlusPrefs", Context.MODE_PRIVATE)
+        val type = remoteMessage.data["type"]
+
+        if (type == "grade" && !prefs.getBoolean("notifMarks", true)) return
+        if (type == "homework" && !prefs.getBoolean("notifTasks", true)) return
+        if (type == "message" && !prefs.getBoolean("notifMessages", true)) return
+
+        if (prefs.getBoolean("notifQuietHours", false)) {
+            val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            if (currentHour >= 22 || currentHour < 6) return
+        }
+
+        if (type == "grade") {
+            val threshold = prefs.getFloat("notifWeightThreshold", 1f)
+            val weight = remoteMessage.data["weight"]?.toFloatOrNull() ?: 1f
+            if (weight < threshold) return
+        }
+
         val title = remoteMessage.notification?.title ?: remoteMessage.data["title"] ?: "BakaPlus"
         val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: ""
-
-        val type = remoteMessage.data["type"]
         val targetTab = remoteMessage.data["targetTab"]
         val targetSubject = remoteMessage.data["targetSubject"]
 
         val channelId = when (type) {
             "homework" -> "baka_homeworks"
             "timetable" -> "baka_timetable"
+            "message" -> "baka_messages"
             else -> "baka_grades"
         }
 

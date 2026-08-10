@@ -15,6 +15,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import android.view.View
 import android.view.WindowManager
 import android.webkit.URLUtil
@@ -27,6 +28,8 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -34,6 +37,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.messaging.FirebaseMessaging
+import org.json.JSONObject
+import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
 
@@ -277,13 +282,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    class WebAppInterface(private val context: android.content.Context) {
+    inner class WebAppInterface(private val context: Context) {
+
         @android.webkit.JavascriptInterface
         fun closeApp() {
-            (context as? android.app.Activity)?.runOnUiThread {
-                (context as? android.app.Activity)?.finish()
+            runOnUiThread {
+                finish()
             }
         }
+
         @android.webkit.JavascriptInterface
         fun openUrl(url: String) {
             try {
@@ -299,16 +306,23 @@ class MainActivity : AppCompatActivity() {
         fun saveImage(base64Data: String, filename: String) {
             try {
                 val base64Image = base64Data.substringAfter(",")
-                val decodedBytes = android.util.Base64.decode(base64Image, android.util.Base64.DEFAULT)
+                val decodedBytes =
+                    android.util.Base64.decode(base64Image, android.util.Base64.DEFAULT)
 
                 val resolver = context.contentResolver
                 val contentValues = android.content.ContentValues().apply {
                     put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
                     put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                    put(
+                        android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                        android.os.Environment.DIRECTORY_PICTURES
+                    )
                 }
 
-                val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                val uri = resolver.insert(
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    contentValues
+                )
                 if (uri != null) {
                     resolver.openOutputStream(uri)?.use { outputStream ->
                         outputStream.write(decodedBytes)
@@ -316,6 +330,76 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getDeviceId(): String {
+            return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+                ?: "web_fallback"
+        }
+
+        @android.webkit.JavascriptInterface
+        fun syncSettings(jsonStr: String) {
+            try {
+                val json = JSONObject(jsonStr)
+                val prefs = getSharedPreferences("BakaPlusPrefs", Context.MODE_PRIVATE)
+                prefs.edit().apply {
+                    putBoolean("notifMarks", json.optBoolean("notifMarks", true))
+                    putBoolean("notifTasks", json.optBoolean("notifTasks", true))
+                    putBoolean("notifMessages", json.optBoolean("notifMessages", true))
+                    putFloat(
+                        "notifWeightThreshold",
+                        json.optDouble("notifWeightThreshold", 1.0).toFloat()
+                    )
+                    putBoolean("notifQuietHours", json.optBoolean("notifQuietHours", false))
+                    apply()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun isBiometricAvailable(): Boolean {
+            val biometricManager = BiometricManager.from(context)
+            return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+        }
+
+        @android.webkit.JavascriptInterface
+        fun authenticate() {
+            runOnUiThread {
+                val executor: Executor = ContextCompat.getMainExecutor(this@MainActivity)
+                val biometricPrompt = BiometricPrompt(
+                    this@MainActivity, executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            super.onAuthenticationSucceeded(result)
+                            webView.evaluateJavascript(
+                                "if(window.unlockAppSuccess) window.unlockAppSuccess();",
+                                null
+                            )
+                        }
+
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence
+                        ) {
+                            super.onAuthenticationError(errorCode, errString)
+                            webView.evaluateJavascript(
+                                "if(window.unlockAppError) window.unlockAppError('${errString}');",
+                                null
+                            )
+                        }
+                    })
+
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Odemknout BakaPlus")
+                    .setSubtitle("Pro přístup k aplikaci ověřte svou identitu")
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                    .build()
+
+                biometricPrompt.authenticate(promptInfo)
             }
         }
     }
