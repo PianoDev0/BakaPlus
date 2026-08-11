@@ -18,6 +18,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check Version Bump
+        id: version
+        run: |
+          GRADLE_VER=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION="v${GRADLE_VER:-1.0}"
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Zkontrolujeme, zda tento tag už v repozitáři existuje
+          if git tag -l | grep -q "^${VERSION}$"; then
+            echo "is_new=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_new=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
@@ -39,6 +53,7 @@ jobs:
           ./gradlew :app:assembleRelease --stacktrace
 
       - name: Sign App
+        if: steps.version.outputs.is_new == 'true'
         id: sign_app
         uses: ilharp/sign-android-release@v2.0.0
         with:
@@ -49,12 +64,12 @@ jobs:
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
       - name: Rename APK
+        if: steps.version.outputs.is_new == 'true'
         id: rename_apk
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          GRADLE_VER=$(grep -E 'versionName\s*=' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
-          VERSION="v${GRADLE_VER:-1.0}"
-
+          VERSION="${{ steps.version.outputs.tag }}"
+          
           TARGET_FILE=$(find app/build/outputs/apk/release/ -type f \( -name "*-signed.apk" -o -name "*.apk" \) | head -n 1)
 
           if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
@@ -62,12 +77,10 @@ jobs:
             NEW_PATH="app/build/outputs/apk/release/${NEW_NAME}"
             mv "$TARGET_FILE" "$NEW_PATH"
             echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
-            echo "apk_name=${NEW_NAME}" >> $GITHUB_OUTPUT
-            echo "tag_name=${VERSION}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-            echo "release_name=${VERSION} (${SHORT_SHA})" >> $GITHUB_OUTPUT
           fi
 
       - name: Build Changelog
+        if: steps.version.outputs.is_new == 'true'
         id: changelog
         uses: ardalanamini/auto-changelog@v5.0.0
         with:
@@ -78,10 +91,11 @@ jobs:
           preferred-api: 'Git'
 
       - name: Create Release
+        if: steps.version.outputs.is_new == 'true'
         uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
           body: ${{ steps.changelog.outputs.changelog }}
-          tag: ${{ steps.rename_apk.outputs.tag_name }}
-          name: ${{ steps.rename_apk.outputs.release_name }}
+          tag: ${{ steps.version.outputs.tag }}
+          name: BakaPlus ${{ steps.version.outputs.tag }} 
           makeLatest: true
