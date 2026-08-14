@@ -34,6 +34,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: ""
         val targetTab = remoteMessage.data["targetTab"]
         val targetSubject = remoteMessage.data["targetSubject"]
+        val accountId = remoteMessage.data["accountId"]
 
         val channelId = when (type) {
             "homework" -> "baka_homeworks"
@@ -42,7 +43,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             else -> "baka_grades"
         }
 
-        sendNotification(title, body, channelId, targetTab, targetSubject)
+        sendNotification(title, body, channelId, targetTab, targetSubject, accountId)
     }
 
     private fun sendNotification(
@@ -50,12 +51,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         messageBody: String,
         channelId: String,
         targetTab: String?,
-        targetSubject: String?
+        targetSubject: String?,
+        accountId: String?
     ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             if (targetTab != null) putExtra("targetTab", targetTab)
             if (targetSubject != null) putExtra("targetSubject", targetSubject)
+            if (accountId != null) putExtra("accountId", accountId)
         }
 
         val pendingIntent = PendingIntent.getActivity(

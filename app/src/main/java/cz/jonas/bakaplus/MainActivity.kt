@@ -248,6 +248,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent?) {
         val targetTab = intent?.getStringExtra("targetTab")
         val targetSubject = intent?.getStringExtra("targetSubject") ?: ""
+        val targetAccountId = intent?.getStringExtra("accountId") ?: ""
 
         if (targetTab != null) {
             val jsCode = """
@@ -255,7 +256,7 @@ class MainActivity : AppCompatActivity() {
                     var attempts = 0;
                     function checkAndOpen() {
                         if (window.openTabFromNotification) {
-                            window.openTabFromNotification('$targetTab', '$targetSubject');
+                            window.openTabFromNotification('$targetTab', '$targetSubject', '$targetAccountId');
                         } else if (attempts < 50) {
                             attempts++;
                             setTimeout(checkAndOpen, 100);
@@ -271,6 +272,7 @@ class MainActivity : AppCompatActivity() {
 
             intent.removeExtra("targetTab")
             intent.removeExtra("targetSubject")
+            intent.removeExtra("accountId")
         }
     }
 
