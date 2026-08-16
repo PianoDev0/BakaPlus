@@ -25,7 +25,6 @@ jobs:
           VERSION="v${GRADLE_VER:-1.0}"
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
           
-          # Zkontrolujeme, zda tento tag už v repozitáři existuje
           if git tag -l | grep -q "^${VERSION}$"; then
             echo "is_new=false" >> $GITHUB_OUTPUT
           else

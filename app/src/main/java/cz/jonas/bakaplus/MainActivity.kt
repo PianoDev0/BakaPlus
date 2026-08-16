@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.Base64
 import android.view.View
 import android.view.WindowManager
 import android.webkit.URLUtil
@@ -27,6 +28,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -50,6 +52,24 @@ class MainActivity : AppCompatActivity() {
     private lateinit var networkCallback: ConnectivityManager.NetworkCallback
 
     private val appUrl = "https://baka.hyperlandia.cz"
+
+    private val importBackupLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.data?.let { uri ->
+                try {
+                    val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    if (content != null) {
+                        val encodedContent = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                        webView.post {
+                            webView.evaluateJavascript("if(window.onBackupLoaded) window.onBackupLoaded('$encodedContent');", null)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Chyba při čtení souboru", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -291,6 +311,15 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 finish()
             }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun importBackup() {
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+            }
+            importBackupLauncher.launch(intent)
         }
 
         @android.webkit.JavascriptInterface
