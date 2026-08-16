@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidApp")
         settings.domStorageEnabled = true
-        settings.databaseEnabled = true
+        settings. databaseEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportMultipleWindows(false)
@@ -334,33 +334,48 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
-        fun saveImage(base64Data: String, filename: String) {
+        fun downloadFile(filename: String, mimeType: String, base64Data: String) {
             try {
-                val base64Image = base64Data.substringAfter(",")
-                val decodedBytes =
-                    android.util.Base64.decode(base64Image, android.util.Base64.DEFAULT)
+                val cleanBase64 = if (base64Data.contains(",")) base64Data.substringAfter(",") else base64Data
+                val decodedBytes = android.util.Base64.decode(cleanBase64, android.util.Base64.DEFAULT)
 
-                val resolver = context.contentResolver
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    put(
-                        android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                        android.os.Environment.DIRECTORY_PICTURES
-                    )
+                val isImage = mimeType.startsWith("image/")
+                val directoryName = if (isImage) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_DOWNLOADS
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val resolver = context.contentResolver
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "$directoryName/BakaPlus")
+                    }
+                    val uriCollection = if (isImage) {
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    } else {
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                    }
+
+                    val uri = resolver.insert(uriCollection, contentValues)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { outputStream ->
+                            outputStream.write(decodedBytes)
+                        }
+                    }
+                } else {
+                    val dir = java.io.File(Environment.getExternalStoragePublicDirectory(directoryName), "BakaPlus")
+                    if (!dir.exists()) dir.mkdirs()
+                    java.io.File(dir, filename).writeBytes(decodedBytes)
                 }
 
-                val uri = resolver.insert(
-                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                )
-                if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(decodedBytes)
-                    }
+                runOnUiThread {
+                    val folderName = if (isImage) "Galerie" else "Stažených"
+                    Toast.makeText(context, "Uloženo do $folderName (BakaPlus)", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                runOnUiThread {
+                    Toast.makeText(context, "Chyba při ukládání souboru", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
