@@ -78,23 +78,12 @@ jobs:
             echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Changelog
-        if: steps.version.outputs.is_new == 'true'
-        id: changelog
-        uses: ardalanamini/auto-changelog@v5.0.0
-        with:
-          mention-authors: false
-          mention-new-contributors: false
-          include-compare-link: false
-          semver: false
-          preferred-api: 'Git'
-
       - name: Create Release
         if: steps.version.outputs.is_new == 'true'
         uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          generateReleaseNotes: true
           tag: ${{ steps.version.outputs.tag }}
           name: BakaPlus ${{ steps.version.outputs.tag }} 
           makeLatest: true
