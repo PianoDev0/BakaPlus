@@ -15,6 +15,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Base64
 import android.view.View
@@ -33,6 +35,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -40,6 +43,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
@@ -416,6 +420,95 @@ class MainActivity : AppCompatActivity() {
         fun isBiometricAvailable(): Boolean {
             val biometricManager = BiometricManager.from(context)
             return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+        }
+
+        @android.webkit.JavascriptInterface
+        fun startAppUpdate(apkUrl: String) {
+            runOnUiThread {
+                try {
+                    val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    val fileName = "bakaplus_update.apk"
+
+                    val existingFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
+                    if (existingFile.exists()) {
+                        existingFile.delete()
+                    }
+
+                    val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
+                        setMimeType("application/vnd.android.package-archive")
+                        setTitle("Aktualizace BakaPlus")
+                        setDescription("Stahuji novou verzi...")
+                        setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                    }
+
+                    val downloadId = dm.enqueue(request)
+
+                    val handler = Handler(Looper.getMainLooper())
+                    val runnable = object : Runnable {
+                        override fun run() {
+                            val cursor = dm.query(DownloadManager.Query().setFilterById(downloadId))
+                            if (cursor.moveToFirst()) {
+                                val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                                val status = cursor.getInt(statusIndex)
+
+                                if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                    webView.evaluateJavascript("if(window.onUpdateProgress) window.onUpdateProgress(100, 'Příprava k instalaci...');", null)
+                                    installApk(fileName)
+                                    cursor.close()
+                                    return
+                                } else if (status == DownloadManager.STATUS_FAILED) {
+                                    webView.evaluateJavascript("if(window.onUpdateError) window.onUpdateError('Stahování selhalo');", null)
+                                    cursor.close()
+                                    return
+                                }
+
+                                val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                                val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+
+                                val downloaded = cursor.getInt(bytesDownloadedIndex)
+                                val total = cursor.getInt(bytesTotalIndex)
+
+                                if (total > 0) {
+                                    val progress = (downloaded * 100L) / total
+                                    webView.evaluateJavascript("if(window.onUpdateProgress) window.onUpdateProgress($progress, 'Stahování...');", null)
+                                }
+                            }
+                            cursor.close()
+                            handler.postDelayed(this, 500)
+                        }
+                    }
+                    handler.post(runnable)
+
+                } catch (e: Exception) {
+                    webView.evaluateJavascript("if(window.onUpdateError) window.onUpdateError('Nelze spustit stahování');", null)
+                }
+            }
+        }
+
+        private fun installApk(fileName: String) {
+            try {
+                val apkFile = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    fileName
+                )
+                if (!apkFile.exists()) return
+
+                val apkUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.provider",
+                    apkFile
+                )
+
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(apkUri, "application/vnd.android.package-archive")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                webView.evaluateJavascript("if(window.onUpdateError) window.onUpdateError('Nelze spustit instalační balíček. Máte povoleny neznámé zdroje?');", null)
+            }
         }
 
         @android.webkit.JavascriptInterface
