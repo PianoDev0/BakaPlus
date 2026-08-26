@@ -27,7 +27,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
@@ -36,6 +35,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.messaging.FirebaseMessaging
@@ -45,6 +45,7 @@ import java.util.concurrent.Executor
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var splashOverlay: View
     private var isPageLoaded = false
     private var isOfflineErrorShown = false
 
@@ -73,17 +74,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
+        splashOverlay = findViewById(R.id.splashOverlay)
         val rootLayout: View = findViewById(R.id.main)
 
         createNotificationChannel()
-
-        window.statusBarColor = Color.parseColor("#050505")
-        window.navigationBarColor = Color.parseColor("#050505")
 
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         controller.isAppearanceLightStatusBars = false
@@ -95,8 +98,6 @@ class MainActivity : AppCompatActivity() {
         )
 
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
@@ -104,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidApp")
         settings.domStorageEnabled = true
-        settings. databaseEnabled = true
+        settings.databaseEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportMultipleWindows(false)
@@ -146,8 +147,7 @@ class MainActivity : AppCompatActivity() {
                     webView.evaluateJavascript(jsCode, null)
                 } else if (url.startsWith("data:")) {
 
-                }
-                else {
+                } else {
                     val request = DownloadManager.Request(Uri.parse(url))
                     request.setMimeType(mimetype)
                     val cookies = android.webkit.CookieManager.getInstance().getCookie(url)
@@ -173,6 +173,12 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 if (url != "about:blank" && !isOfflineErrorShown) {
                     isPageLoaded = true
+
+                    splashOverlay.animate()
+                        .alpha(0f)
+                        .setDuration(400)
+                        .withEndAction { splashOverlay.visibility = View.GONE }
+
                     checkNotificationPermission()
                     injectFirebaseToken()
                     handleIntent(intent)
