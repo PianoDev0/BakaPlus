@@ -39,12 +39,12 @@ import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executor
+import androidx.core.net.toUri
 
 class MainActivity : AppCompatActivity() {
 
@@ -152,7 +152,7 @@ class MainActivity : AppCompatActivity() {
                 } else if (url.startsWith("data:")) {
 
                 } else {
-                    val request = DownloadManager.Request(Uri.parse(url))
+                    val request = DownloadManager.Request(url.toUri())
                     request.setMimeType(mimetype)
                     val cookies = android.webkit.CookieManager.getInstance().getCookie(url)
                     request.addRequestHeader("cookie", cookies)
@@ -437,7 +437,7 @@ class MainActivity : AppCompatActivity() {
                     val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                         setMimeType("application/vnd.android.package-archive")
                         setTitle("Aktualizace BakaPlus")
-                        setDescription("Stahuji novou verzi...")
+                        setDescription("Stahování nové verze...")
                         setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                         setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
                     }
@@ -454,7 +454,7 @@ class MainActivity : AppCompatActivity() {
 
                                 if (status == DownloadManager.STATUS_SUCCESSFUL) {
                                     webView.evaluateJavascript("if(window.onUpdateProgress) window.onUpdateProgress(100, 'Příprava k instalaci...');", null)
-                                    installApk(fileName)
+                                    installApk(downloadId)
                                     cursor.close()
                                     return
                                 } else if (status == DownloadManager.STATUS_FAILED) {
@@ -486,25 +486,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        private fun installApk(fileName: String) {
+        private fun installApk(downloadId: Long) {
             try {
-                val apkFile = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    fileName
-                )
-                if (!apkFile.exists()) return
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                val apkUri = dm.getUriForDownloadedFile(downloadId)
 
-                val apkUri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.provider",
-                    apkFile
-                )
-
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(apkUri, "application/vnd.android.package-archive")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                if (apkUri != null) {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, "application/vnd.android.package-archive")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    }
+                    context.startActivity(intent)
+                } else {
+                    webView.evaluateJavascript("if(window.onUpdateError) window.onUpdateError('Instalační soubor nenalezen');", null)
                 }
-                context.startActivity(intent)
             } catch (e: Exception) {
                 e.printStackTrace()
                 webView.evaluateJavascript("if(window.onUpdateError) window.onUpdateError('Nelze spustit instalační balíček. Máte povoleny neznámé zdroje?');", null)
