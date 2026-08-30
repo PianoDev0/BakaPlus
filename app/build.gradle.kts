@@ -15,10 +15,8 @@ android {
         applicationId = "cz.jonas.bakaplus"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.8"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionCode = 20
+        versionName = "2.0"
     }
 
     buildTypes {
