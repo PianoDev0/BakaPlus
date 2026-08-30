@@ -1,4 +1,4 @@
-# BakaPlus 
+# BakaPlus jsou nyní Student+!
 
 **Moderní neoficiální Android klient** pro školní systém **Bakaláři**, navržený s důrazem na **rychlost**, čistý **design** a **funkce**, které považuji za samozřejmost.
 

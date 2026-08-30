@@ -1,4 +1,4 @@
-name: Build & Release BakaPlus
+name: Build & Release Student+
 
 on:
   push:
@@ -72,7 +72,7 @@ jobs:
           TARGET_FILE=$(find app/build/outputs/apk/release/ -type f \( -name "*-signed.apk" -o -name "*.apk" \) | head -n 1)
 
           if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-            NEW_NAME="BakaPlus-${VERSION}-${SHORT_SHA}.apk"
+            NEW_NAME="StudentPlus-${VERSION}-${SHORT_SHA}.apk"
             NEW_PATH="app/build/outputs/apk/release/${NEW_NAME}"
             mv "$TARGET_FILE" "$NEW_PATH"
             echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
@@ -85,5 +85,5 @@ jobs:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
           generateReleaseNotes: true
           tag: ${{ steps.version.outputs.tag }}
-          name: BakaPlus ${{ steps.version.outputs.tag }} 
+          name: ${{ steps.version.outputs.tag }} 
           makeLatest: true
