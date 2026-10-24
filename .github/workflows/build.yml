@@ -83,7 +83,8 @@ jobs:
         uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
-          generateReleaseNotes: true
+          bodyFile: changelog.txt
+          generateReleaseNotes: false
           tag: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }} 
+          name: ${{ steps.version.outputs.tag }}
           makeLatest: true

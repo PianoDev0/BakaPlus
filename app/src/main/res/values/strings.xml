@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Student+</string>
+    <string name="widget_timetable_name">Rozvrh hodin</string>
+    <string name="widget_timetable_description">Přehled denního rozvrhu hodin s vyznačením probíhající hodiny a suplování</string>
 </resources>

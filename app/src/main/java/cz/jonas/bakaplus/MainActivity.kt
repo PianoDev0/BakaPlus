@@ -19,6 +19,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Base64
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.URLUtil
@@ -101,19 +103,60 @@ class MainActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
 
+        // Request highest available display refresh rate (90Hz / 120Hz) for zero-jank animations
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    this.display
+                } else {
+                    @Suppress("DEPRECATION")
+                    windowManager.defaultDisplay
+                }
+                val supportedModes = display?.supportedModes
+                val currentMode = display?.mode
+                if (supportedModes != null && currentMode != null) {
+                    val bestMode = supportedModes
+                        .filter { it.physicalWidth == currentMode.physicalWidth && it.physicalHeight == currentMode.physicalHeight }
+                        .maxByOrNull { it.refreshRate }
+                    if (bestMode != null && bestMode.modeId != currentMode.modeId) {
+                        val params = window.attributes
+                        params.preferredDisplayModeId = bestMode.modeId
+                        window.attributes = params
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         ViewCompat.setOnApplyWindowInsetsListener(rootLayout) { v, insets ->
             insets
         }
 
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        webView.requestFocus(View.FOCUS_DOWN)
+        webView.setOnTouchListener { v, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                if (!v.hasFocus()) {
+                    v.requestFocus()
+                }
+            }
+            false
+        }
+
         val settings = webView.settings
         settings.javaScriptEnabled = true
+        settings.setNeedInitialFocus(false)
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidApp")
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
+        settings.textZoom = 100
         settings.setSupportMultipleWindows(false)
         settings.javaScriptCanOpenWindowsAutomatically = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            settings.offscreenPreRaster = true
+        }
 
         val defaultUserAgent = settings.userAgentString
         val appVersion = packageManager.getPackageInfo(packageName, 0).versionName
@@ -232,6 +275,25 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, callback)
     }
 
+    override fun onResume() {
+        super.onResume()
+        webView.onResume()
+        webView.resumeTimers()
+        webView.requestFocus(View.FOCUS_DOWN)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        webView.onPause()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            webView.requestFocus(View.FOCUS_DOWN)
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -315,6 +377,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class WebAppInterface(private val context: Context) {
+
+        @android.webkit.JavascriptInterface
+        fun performHaptic(type: String) {
+            webView.post {
+                val feedbackConstant = when (type) {
+                    "success" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        HapticFeedbackConstants.CONFIRM
+                    } else {
+                        HapticFeedbackConstants.VIRTUAL_KEY
+                    }
+                    "error" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        HapticFeedbackConstants.REJECT
+                    } else {
+                        HapticFeedbackConstants.LONG_PRESS
+                    }
+                    "medium" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        HapticFeedbackConstants.CONTEXT_CLICK
+                    } else {
+                        HapticFeedbackConstants.KEYBOARD_TAP
+                    }
+                    else -> HapticFeedbackConstants.CLOCK_TICK
+                }
+                webView.performHapticFeedback(
+                    feedbackConstant,
+                    HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
+                )
+            }
+        }
 
         @android.webkit.JavascriptInterface
         fun closeApp() {
@@ -417,6 +507,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         @android.webkit.JavascriptInterface
+        fun updateTimetableWidget(jsonStr: String) {
+            try {
+                val prefs = getSharedPreferences(TimetableWidgetProvider.PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putString(TimetableWidgetProvider.KEY_TIMETABLE_DATA, jsonStr).apply()
+                runOnUiThread {
+                    TimetableWidgetProvider.updateAllWidgets(this@MainActivity)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @android.webkit.JavascriptInterface
         fun isBiometricAvailable(): Boolean {
             val biometricManager = BiometricManager.from(context)
             return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
@@ -427,7 +530,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 try {
                     val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                    val fileName = "bakaplus_update.apk"
+                    val fileName = "studentplus_update.apk"
 
                     val existingFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
                     if (existingFile.exists()) {
@@ -436,7 +539,7 @@ class MainActivity : AppCompatActivity() {
 
                     val request = DownloadManager.Request(Uri.parse(apkUrl)).apply {
                         setMimeType("application/vnd.android.package-archive")
-                        setTitle("Aktualizace BakaPlus")
+                        setTitle("Aktualizace Student+")
                         setDescription("Stahování nové verze...")
                         setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                         setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
@@ -534,8 +637,8 @@ class MainActivity : AppCompatActivity() {
                     })
 
                 val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Odemknout BakaPlus")
-                    .setSubtitle("Pro přístup k aplikaci ověřte svou identitu")
+                    .setTitle("Potvrzení identity")
+                    .setSubtitle("Pro přístup ověřte svou identitu")
                     .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
                     .build()
 

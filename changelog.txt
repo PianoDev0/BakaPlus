@@ -1,0 +1,4 @@
+- Přidán nativní widget rozvrhu hodin na plochu
+- Podpora procházení dnů napříč týdny ve widgetu
+- Tlačítko pro rychlé otevření aplikace z widgetu
+- Přepsání zbývajících textů na "Student+"

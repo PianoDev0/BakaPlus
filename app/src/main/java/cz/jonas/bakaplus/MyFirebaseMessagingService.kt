@@ -38,7 +38,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val channelId = when (type) {
             "homework" -> "baka_homeworks"
-            "timetable" -> "baka_timetable"
+            "timetable" -> {
+                try {
+                    TimetableWidgetProvider.updateAllWidgets(this)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                "baka_timetable"
+            }
             "message" -> "baka_messages"
             else -> "baka_grades"
         }
