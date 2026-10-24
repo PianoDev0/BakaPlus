@@ -69,21 +69,28 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           VERSION="${{ steps.version.outputs.tag }}"
           
-          TARGET_FILE=$(find app/build/outputs/apk/release/ -type f \( -name "*-signed.apk" -o -name "*.apk" \) | head -n 1)
-
-          if [ -n "$TARGET_FILE" ] && [ -f "$TARGET_FILE" ]; then
-            NEW_NAME="StudentPlus-${VERSION}-${SHORT_SHA}.apk"
-            NEW_PATH="app/build/outputs/apk/release/${NEW_NAME}"
-            mv "$TARGET_FILE" "$NEW_PATH"
-            echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
+          TARGET_FILE="${{ steps.sign_app.outputs.signedFile }}"
+          if [ -z "$TARGET_FILE" ] || [ ! -f "$TARGET_FILE" ]; then
+            TARGET_FILE=$(find app/build/outputs/apk/release/ -type f -name "*-signed.apk" | head -n 1)
           fi
+
+          if [ -z "$TARGET_FILE" ] || [ ! -f "$TARGET_FILE" ]; then
+            echo "ERROR: Signed APK not found in app/build/outputs/apk/release/"
+            exit 1
+          fi
+
+          NEW_NAME="StudentPlus-${VERSION}-${SHORT_SHA}.apk"
+          NEW_PATH="app/build/outputs/apk/release/${NEW_NAME}"
+          mv "$TARGET_FILE" "$NEW_PATH"
+          echo "apk_path=${NEW_PATH}" >> $GITHUB_OUTPUT
 
       - name: Create Release
         if: steps.version.outputs.is_new == 'true'
         uses: ncipollo/release-action@v1.21.0
         with:
           artifacts: ${{ steps.rename_apk.outputs.apk_path }}
-          generateReleaseNotes: true
+          bodyFile: changelog.txt
+          generateReleaseNotes: false
           tag: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }} 
+          name: ${{ steps.version.outputs.tag }}
           makeLatest: true
