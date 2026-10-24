@@ -29,10 +29,14 @@ Nejnovější verzi pro **Android (.apk)** si můžete stáhnout z **[Releases](
 
 * Při vývoji byla využita tato **[Dokumentace](https://github.com/bakalari-api/bakalari-api-v3)**
 
-<img width="1080" height="2340" alt="Screenshot_20261024_161904_Student+" src="https://github.com/user-attachments/assets/d52ad8a9-3b9e-4cd9-81ef-3687d657c013" />
-<img width="1080" height="2340" alt="Screenshot_20261024_161919_Student+" src="https://github.com/user-attachments/assets/c813e601-dc6c-442c-9087-2be3b1003afa" />
-<img width="1080" height="2340" alt="Screenshot_20261024_161938_Student+" src="https://github.com/user-attachments/assets/84d15ce9-2b35-4f3f-88ab-1b0194b15ec5" />
-<img width="1080" height="2340" alt="Screenshot_20261024_161950_Student+" src="https://github.com/user-attachments/assets/233ef029-e3b2-4506-80ce-bec8b9f04612" />
+---
+##  Screenshots
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d52ad8a9-3b9e-4cd9-81ef-3687d657c013" alt="Dashboard" width="24%" />
+  <img src="https://github.com/user-attachments/assets/c813e601-dc6c-442c-9087-2be3b1003afa" alt="Rozvrh" width="24%" />
+  <img src="https://github.com/user-attachments/assets/84d15ce9-2b35-4f3f-88ab-1b0194b15ec5" alt="Známky" width="24%" />
+  <img src="https://github.com/user-attachments/assets/233ef029-e3b2-4506-80ce-bec8b9f04612" alt="Menu" width="24%" />
+</p>
 
 
