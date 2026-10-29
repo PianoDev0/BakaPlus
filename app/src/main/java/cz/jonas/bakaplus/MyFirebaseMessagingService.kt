@@ -14,6 +14,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         val prefs = getSharedPreferences("BakaPlusPrefs", Context.MODE_PRIVATE)
         val type = remoteMessage.data["type"]
+        val accountId = remoteMessage.data["accountId"]
+
+        val disabledAccountNotifs = prefs.getString("disabledAccountNotifs", "[]") ?: "[]"
+        if (accountId != null && disabledAccountNotifs.contains(accountId)) return
 
         if (type == "grade" && !prefs.getBoolean("notifMarks", true)) return
         if (type == "homework" && !prefs.getBoolean("notifTasks", true)) return
@@ -34,7 +38,6 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val body = remoteMessage.notification?.body ?: remoteMessage.data["body"] ?: ""
         val targetTab = remoteMessage.data["targetTab"]
         val targetSubject = remoteMessage.data["targetSubject"]
-        val accountId = remoteMessage.data["accountId"]
 
         val channelId = when (type) {
             "homework" -> "baka_homeworks"

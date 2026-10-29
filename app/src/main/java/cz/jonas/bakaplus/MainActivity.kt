@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.DownloadManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -102,8 +103,6 @@ class MainActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
-
-        // Request highest available display refresh rate (90Hz / 120Hz) for zero-jank animations
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
                 val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -273,6 +272,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         onBackPressedDispatcher.addCallback(this, callback)
+        LessonAlarmScheduler.scheduleFromPrefs(this)
     }
 
     override fun onResume() {
@@ -494,6 +494,9 @@ class MainActivity : AppCompatActivity() {
                     putBoolean("notifMarks", json.optBoolean("notifMarks", true))
                     putBoolean("notifTasks", json.optBoolean("notifTasks", true))
                     putBoolean("notifMessages", json.optBoolean("notifMessages", true))
+                    putBoolean("notifNextLesson", json.optBoolean("notifNextLesson", false))
+                    putString("disabledAccountNotifs", json.optString("disabledAccountNotifs", "[]"))
+                    putString("disabledAccountSync", json.optString("disabledAccountSync", "[]"))
                     putFloat(
                         "notifWeightThreshold",
                         json.optDouble("notifWeightThreshold", 1.0).toFloat()
@@ -501,6 +504,36 @@ class MainActivity : AppCompatActivity() {
                     putBoolean("notifQuietHours", json.optBoolean("notifQuietHours", false))
                     apply()
                 }
+                LessonAlarmScheduler.scheduleFromPrefs(this@MainActivity)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun showNotification(title: String, messageBody: String, channel: String?) {
+            try {
+                val channelId = channel ?: "baka_timetable"
+                val intent = Intent(this@MainActivity, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra("targetTab", "dashboard")
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    this@MainActivity,
+                    System.currentTimeMillis().toInt(),
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                val notificationBuilder = androidx.core.app.NotificationCompat.Builder(this@MainActivity, channelId)
+                    .setSmallIcon(R.drawable.ic_stat_name)
+                    .setContentTitle(title)
+                    .setContentText(messageBody)
+                    .setAutoCancel(true)
+                    .setContentIntent(pendingIntent)
+                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+
+                val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -514,6 +547,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     TimetableWidgetProvider.updateAllWidgets(this@MainActivity)
                 }
+                LessonAlarmScheduler.scheduleAlarms(this@MainActivity, jsonStr)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

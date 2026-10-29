@@ -1,4 +1,9 @@
-- Přidán nativní widget rozvrhu hodin na plochu
-- Podpora procházení dnů napříč týdny ve widgetu
-- Tlačítko pro rychlé otevření aplikace z widgetu
-- Přepsání zbývajících textů na "Student+"
+**Přidáno:**
+- Synchronizace nastavení napříč zařízeními
+- Možnost vypnout oznámení pro jednotlivé účty
+- Oznámení o další hodině 10 minut předem
+
+**Vylepšeno:**
+- Rychlost aplikace
+- Sjednocený styl napříč aplikací
+- Spolehlivější notifikace
